@@ -1,0 +1,7 @@
+wifi_ssid = 'Forum'
+wifi_password = '03Forum25'
+mqtt_server = b'172.16.1.186'
+mqtt_username = b'BROKER_USERNAME'
+mqtt_password = b'BROKER_PASSWORD'
+mqtt_port= 1883
+mqtt_client_id= 'Temperatur_client'
