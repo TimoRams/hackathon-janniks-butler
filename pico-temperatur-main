@@ -1,0 +1,92 @@
+import bluetooth
+import machine
+import time
+import ustruct
+from machine import Pin
+from neopixel import NeoPixel
+from time import sleep_ms
+from time import sleep, sleep_us, ticks_us
+import math
+import test1
+
+#Lade eigene Bibliotheken
+import RGB as rgb
+import Distanzsensor as ds
+import SendToPybricks as message
+
+test1
+
+ble = bluetooth.BLE()
+ble.active(True)
+btn = Pin(19, Pin.IN, Pin.PULL_UP)
+# Initialisierung GPIO-Ausgang für Trigger-Signal
+trigger = Pin(16, Pin.OUT)
+
+# Initialisierung GPIO-Eingang für Echo-Signal
+echo = Pin(17, Pin.IN)
+
+def median(data):
+    data = sorted(data)
+    n = len(data)
+    if n % 2 == 1:
+        return data[n//2]
+    else:
+        i = n//2
+        return (data[i - 1] + data[i])/2
+
+ldr = machine.ADC(26)
+
+#pm_target = machine.ADC(27)
+
+# We use a factor for each potentiometer to scale its range to
+# the range of the LEGO motor. For speed we want adjust the
+# motor between zero and maximum speed (900), for the target
+# angle we want to use the range 0 to 180 degrees.
+#factor_speed = 900 / 65535
+#factor_target = 180 / 65535
+MAX_FILTERLENGHT = 5
+MIN_LENGHT = 4
+MAX_DARKNESS = 40000
+
+SIGNAL_STOP = 0
+SIGNAL_RUN = 1
+SIGNAL_TURN = 3
+print (ble.config("mac"))
+rgb.startSequenze(4)
+#rgb.startSequenze(4)
+versteckt = False
+filter = []
+while True:
+    distance = ds.getDistance(trigger,echo)
+    brightness = ldr.read_u16()
+    print("Hell " + str(brightness))
+    if distance == -1:
+        sleep_ms(5)
+        continue
+    elif distance == -2:
+        distance = 100
+    filter.append(distance)
+    if len(filter) == MAX_FILTERLENGHT:
+        filter.pop(0)
+    if len(filter) < MIN_LENGHT:
+        sleep_ms(1)
+        continue
+    distance = median(filter)
+    print("distance "+ str(distance))
+    
+    if brightness > MAX_DARKNESS:
+        print(brightness)
+        while( btn.value() == 1):
+            message.send(ble,SIGNAL_STOP)
+            sleep_ms(10)
+            print("Warte auf Freigabe")       
+        continue
+        
+    if distance < 50:
+        message.send(ble,SIGNAL_TURN)
+    else:
+        message.send(ble,SIGNAL_RUN)
+   
+    
+    
+print("This sucks")
