@@ -1,0 +1,95 @@
+#Hier der Zugangs-Code :)
+import random
+from paho.mqtt import client as mqtt_client
+import time
+import board
+import adafruit_dht
+from gpiozero import Buzzer
+import time
+from gpiozero import PWMOutputDevice
+
+#mqtt server
+broker = '172.16.1.186'
+port = 1883
+topic = "notes/alarm"
+client_id = f'python-mqtt-lioba'
+
+# Hier wird der Ausgangs-Pin deklariert, an dem der Buzzer angeschlossen ist.
+buzzer = Buzzer(23)
+buzzer_nice = PWMOutputDevice(24, frequency=500, initial_value=0.5)
+buzzer_nice.value=0.0
+
+def connect_mqtt():
+    def on_connect(client, userdata, flags, rc):
+        print("Hallo")
+        if rc == 0:
+            print("Connected to MQTT Broker!")
+        else:
+            print(f"Failed to connect, return code {rc}")
+
+    client = mqtt_client.Client()
+    client.on_connect = on_connect
+    print("B")
+    client.connect(broker, port)
+    print("A")
+    return client
+
+def publish(client, topic, msg):
+    result = client.publish(topic, msg)
+    if result[0] == 0:
+        print(f"Sent {msg} to topic {topic}")
+    else:
+        print(f"Failed to send message to topic {topic}")
+
+def subscribe(client, topic):
+    def on_message(client, userdata, msg):
+        print(f"Received {msg.payload.decode()} from {msg.topic} topic")
+        payload = msg.payload.decode()
+        if msg.topic=="notes/alarm" and payload== "final": #buzzer arlam
+            buzzer.on()
+        elif msg.topic=="notes/alarm" and payload== "off":
+            buzzer.off()
+            buzzer_nice.value=0.0
+        elif msg.topic=="notes/alarm" and payload.startswith("nice"):
+            buzzer_nice.frequency=int(payload.split(",")[1])
+            buzzer_nice.value=0.5
+            print("########################### nice") #test
+            
+    client.subscribe(topic)
+    client.on_message = on_message
+    print("zaz") #test
+
+# Verbindung herstellen und in `client` speichern
+client = connect_mqtt()
+
+
+subscribe(client, "notes/#")
+
+client.loop_start()
+
+# Veroeffentliche eine Test-Nachricht
+publish(client, "test/lioba", "Ich bin hier")
+
+dhtDevice = adafruit_dht.DHT11(board.D4, use_pulseio=False) #hmd sensor
+ 
+while True:
+    try:
+        # Print the values to the serial port
+        temperature_c = dhtDevice.temperature
+        temperature_f = temperature_c * (9 / 5) + 32
+        humidity = dhtDevice.humidity
+        print(
+            "Temp: {:.1f} F / {:.1f} C  Humidity: {}% ".format(
+                temperature_f, temperature_c, humidity))
+        publish(client, "notes/hmd", humidity)
+        
+    except RuntimeError as error:
+        # Errors happen fairly often, DHT's are hard to read, just keep going
+        print(error.args[0])
+        time.sleep(2.0)
+        continue
+    except Exception as error:
+        dhtDevice.exit()
+        raise error
+    
+    time.sleep(1)
